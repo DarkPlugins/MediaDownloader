@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "MediaDownloader",
+  "version": "1.0.0",
+  "description": "Download images and videos from their context menu in original or converted formats.",
+  "author": "DarkPlugins",
+  "permissions": ["contextMenus", "downloads", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "src/js/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "MediaDownloader",
+    "default_popup": "src/html/popup.html"
+  },
+  "icons": {
+    "16": "src/assets/icon16.png",
+    "32": "src/assets/icon32.png",
+    "48": "src/assets/icon48.png",
+    "128": "src/assets/icon128.png"
+  }
+}
