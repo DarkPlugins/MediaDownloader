@@ -6,11 +6,12 @@
   <title>MediaDownloader Converter</title>
   <link rel="stylesheet" href="../css/popup.css">
 </head>
-<body>
+<body class="converter-page">
   <main class="card">
     <h1>MediaDownloader</h1>
     <p id="status" role="status" aria-live="polite">Preparing…</p>
     <progress id="progress" value="0" max="100" hidden></progress>
+    <button id="action" type="button" hidden></button>
     <button id="close" type="button">Close</button>
   </main>
   <script type="module" src="../js/converter.js"></script>

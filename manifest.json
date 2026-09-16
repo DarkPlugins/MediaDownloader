@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Download images and videos from their context menu in original or converted formats.",
   "author": "DarkPlugins",
-  "permissions": ["contextMenus", "downloads", "scripting", "tabs"],
+  "permissions": ["contextMenus", "downloads", "scripting", "tabs", "storage", "unlimitedStorage"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/js/background.js",

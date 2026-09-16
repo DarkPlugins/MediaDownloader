@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MediaDownloader — Choose folder</title>
+  <link rel="stylesheet" href="../css/popup.css">
+</head>
+<body class="converter-page folder-page">
+  <main>
+    <h1 id="folder-title">Choose download folder</h1>
+    <p>Choose a folder and allow access so MediaDownloader can save your files there.</p>
+    <p class="hint">You can paste a full path into the system folder dialog. The browser shares only the folder’s name with this extension.</p>
+    <p id="requested-path" hidden></p>
+    <button id="choose-folder" type="button">Browse folder…</button>
+    <p id="folder-status" role="status" aria-live="polite"></p>
+    <button id="close" type="button">Close</button>
+  </main>
+  <script type="module" src="../js/folder.js"></script>
+</body>
+</html>

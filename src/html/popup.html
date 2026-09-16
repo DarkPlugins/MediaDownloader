@@ -7,10 +7,37 @@
   <link rel="stylesheet" href="../css/popup.css">
 </head>
 <body>
-  <main>
-    <h1>MediaDownloader</h1>
-    <p>Use the right-click menu on an image or video.</p>
-    <p class="hint">Choose a download option and then select the file name and location in the save dialog.</p>
+  <main class="popup">
+    <header class="brand">
+      <img src="../assets/icon48.png" width="40" height="40" alt="">
+      <div><h1>MediaDownloader</h1><p>Your media. Your defaults.</p></div>
+    </header>
+    <form id="settings-form">
+      <fieldset id="settings-fields" disabled>
+        <section class="settings-card">
+          <h2>Default save folders</h2>
+          <label class="folder-label" for="image-folder">Images</label>
+          <div class="folder-row"><div class="folder-input"><input id="image-folder" name="imageFolder" type="text" placeholder="Downloads (default)" autocomplete="off" spellcheck="false" aria-describedby="folder-help image-folder-error"></div><button id="browse-image" class="browse-button" type="button" aria-label="Browse folder for images" title="Browse folder for images"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2M3 7h16a2 2 0 0 1 2 2l-2 10H3L1 9a2 2 0 0 1 2-2Z"/></svg><span>Browse</span></button></div>
+          <p id="image-folder-error" class="error" role="alert" hidden></p>
+          <label class="folder-label" for="video-folder">Videos</label>
+          <div class="folder-row"><div class="folder-input"><input id="video-folder" name="videoFolder" type="text" placeholder="Downloads (default)" autocomplete="off" spellcheck="false" aria-describedby="folder-help video-folder-error"></div><button id="browse-video" class="browse-button" type="button" aria-label="Browse folder for videos" title="Browse folder for videos"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2M3 7h16a2 2 0 0 1 2 2l-2 10H3L1 9a2 2 0 0 1 2-2Z"/></svg><span>Browse</span></button></div>
+          <p id="video-folder-error" class="error" role="alert" hidden></p>
+          <p id="folder-help" class="hint">Browse to choose any folder or enter its full path in the folder dialog. Empty uses Downloads.</p>
+          <div class="divider"></div>
+          <h2>Default format</h2>
+          <div class="format-grid">
+            <label for="image-format">Images<select id="image-format" name="imageFormat"><option value="png">PNG</option><option value="jpg">JPG</option><option value="webp">WebP</option><option value="original">Original</option></select></label>
+            <label for="video-format">Videos<select id="video-format" name="videoFormat"><option value="mp4">MP4</option><option value="original">Original</option></select></label>
+          </div>
+        </section>
+        <section class="settings-card quick-save">
+          <label class="toggle-row" for="dont-ask-filename"><span class="field-title">Don't ask for filename</span><input id="dont-ask-filename" name="dontAskFilename" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label>
+          <p class="hint">Download straight to your folder using the media’s filename. Duplicate names get a number.</p>
+        </section>
+      </fieldset>
+    </form>
+    <footer><p id="save-status" role="status" aria-live="polite">Loading settings…</p><p class="usage">Right-click an image or video to download.</p></footer>
   </main>
+  <script type="module" src="../js/popup.js"></script>
 </body>
 </html>

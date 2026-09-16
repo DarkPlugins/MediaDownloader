@@ -8,41 +8,44 @@
  */
 
 import { buildFilename } from "./filename.js";
+import { getSettings, downloadOptions, isAbsoluteFolder } from "./settings.js";
 
 const MENU_IDS = {
   imageOriginal: "md-image-original",
-  imagePng: "md-image-png",
+  imageDefault: "md-image-default",
+  videoDefault: "md-video-default",
   videoOriginal: "md-video-original"
 };
 
-chrome.runtime.onInstalled.addListener(() => {
-  createContextMenus();
+chrome.runtime.onInstalled.addListener(() => refreshContextMenus());
+chrome.runtime.onStartup.addListener(() => refreshContextMenus());
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && (changes.imageFormat || changes.videoFormat)) refreshContextMenus();
 });
 
-chrome.runtime.onStartup.addListener(() => {
-  createContextMenus();
-});
+// Serialize rebuilds so rapid format changes cannot create duplicate menu IDs.
+let menuUpdate = Promise.resolve();
+function refreshContextMenus() {
+  menuUpdate = menuUpdate.then(createContextMenus).catch(error => console.error("MediaDownloader: Menu update failed.", error));
+  return menuUpdate;
+}
 
-function createContextMenus() {
-  chrome.contextMenus.removeAll().then(() => {
-    chrome.contextMenus.create({
-      id: MENU_IDS.imageOriginal,
-      title: "MediaDownloader: Download image as original",
-      contexts: ["image"]
-    });
-
-    chrome.contextMenus.create({
-      id: MENU_IDS.imagePng,
-      title: "MediaDownloader: Download image as PNG",
-      contexts: ["image"]
-    });
-
-    chrome.contextMenus.create({
-      id: MENU_IDS.videoOriginal,
-      title: "MediaDownloader: Download video as original",
-      contexts: ["video"]
-    });
-  });
+async function createContextMenus() {
+  const settings = await getSettings();
+  await chrome.contextMenus.removeAll();
+  for (const kind of ["image", "video"]) {
+    const format = settings[`${kind}Format`];
+    await new Promise((resolve, reject) => chrome.contextMenus.create({
+      id: MENU_IDS[`${kind}Default`],
+      title: `MediaDownloader: Download ${kind} as ${format === "original" ? "original" : format.toUpperCase()} (configured)`,
+      contexts: [kind]
+    }, () => chrome.runtime.lastError ? reject(new Error(chrome.runtime.lastError.message)) : resolve()));
+    await new Promise((resolve, reject) => chrome.contextMenus.create({
+      id: MENU_IDS[`${kind}Original`],
+      title: `MediaDownloader: Download ${kind} as original`,
+      contexts: [kind]
+    }, () => chrome.runtime.lastError ? reject(new Error(chrome.runtime.lastError.message)) : resolve()));
+  }
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -50,10 +53,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   try {
     const isImage = info.menuItemId === MENU_IDS.imageOriginal ||
-                    info.menuItemId === MENU_IDS.imagePng;
-    const isVideo = info.menuItemId === MENU_IDS.videoOriginal;
+                    info.menuItemId === MENU_IDS.imageDefault;
+    const isVideo = info.menuItemId === MENU_IDS.videoOriginal ||
+                    info.menuItemId === MENU_IDS.videoDefault;
 
     if (!isImage && !isVideo) return;
+    const settings = await getSettings();
+    const format = info.menuItemId === MENU_IDS.imageDefault ? settings.imageFormat :
+      info.menuItemId === MENU_IDS.videoDefault ? settings.videoFormat : "original";
 
     // Looking for a higher-resolution source is optional. A valid browser
     // source still works when the page cannot be inspected.
@@ -76,8 +83,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       throw new Error("Could not resolve the media URL.");
     }
 
-    if (info.menuItemId === MENU_IDS.imagePng) {
-      await openConverterTab({ url: resolved.url, format: "png" });
+    const kind = isImage ? "image" : "video";
+    if (format !== "original" || settings[`${kind}DirectoryId`] || isAbsoluteFolder(settings[`${kind}Folder`])) {
+      await openConverterTab({ url: resolved.url, format, kind, settings });
       return;
     }
 
@@ -88,9 +96,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
     await chrome.downloads.download({
       url: resolved.url,
-      filename,
-      conflictAction: "uniquify",
-      saveAs: true
+      ...downloadOptions(filename, settings, kind)
     });
   } catch (error) {
     console.error("MediaDownloader:", error);
