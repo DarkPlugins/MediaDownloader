@@ -7,11 +7,12 @@
  * or a link, the content script tries to resolve a higher-resolution candidate.
  */
 
+import { buildFilename } from "./filename.js";
+
 const MENU_IDS = {
   imageOriginal: "md-image-original",
   imagePng: "md-image-png",
-  videoOriginal: "md-video-original",
-  videoMp4: "md-video-mp4"
+  videoOriginal: "md-video-original"
 };
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -41,58 +42,48 @@ function createContextMenus() {
       title: "MediaDownloader: Download video as original",
       contexts: ["video"]
     });
-
-    chrome.contextMenus.create({
-      id: MENU_IDS.videoMp4,
-      title: "MediaDownloader: Download video as MP4",
-      contexts: ["video"]
-    });
   });
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (!tab?.id) return;
+  if (tab?.id == null) return;
 
   try {
     const isImage = info.menuItemId === MENU_IDS.imageOriginal ||
                     info.menuItemId === MENU_IDS.imagePng;
-    const isVideo = info.menuItemId === MENU_IDS.videoOriginal ||
-                    info.menuItemId === MENU_IDS.videoMp4;
+    const isVideo = info.menuItemId === MENU_IDS.videoOriginal;
 
     if (!isImage && !isVideo) return;
 
-    const result = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: resolveMediaUrl,
-      args: [{
-        kind: isImage ? "image" : "video",
-        url: info.srcUrl || "",
-        pageUrl: tab.url || "",
-        mode: info.menuItemId
-      }]
-    });
-
-    const resolved = result?.[0]?.result;
-    if (!resolved?.url) {
+    // Looking for a higher-resolution source is optional. A valid browser
+    // source still works when the page cannot be inspected.
+    const sourceUrl = typeof info.srcUrl === "string" ? info.srcUrl.trim() : "";
+    let resolved = { url: sourceUrl };
+    try {
+      const result = await chrome.scripting.executeScript({
+        target: { tabId: tab.id, frameIds: [info.frameId ?? 0] },
+        func: resolveMediaUrl,
+        args: [{ kind: isImage ? "image" : "video", url: sourceUrl }]
+      });
+      const candidate = result?.[0]?.result?.url;
+      if (typeof candidate === "string" && candidate.trim()) {
+        resolved = { url: candidate.trim() };
+      }
+    } catch (error) {
+      console.warn("MediaDownloader: Could not inspect media; using the source URL.", error);
+    }
+    if (!resolved.url) {
       throw new Error("Could not resolve the media URL.");
     }
 
-    const wantsConversion =
-      info.menuItemId === MENU_IDS.imagePng ||
-      info.menuItemId === MENU_IDS.videoMp4;
-
-    // Browser downloads can save original files. PNG/MP4 conversion is
-    // performed by a local page because the Downloads API itself cannot
-    // transcode arbitrary remote media.
-    if (wantsConversion) {
-      await openConverterTab(tab, resolved, isImage ? "png" : "mp4");
+    if (info.menuItemId === MENU_IDS.imagePng) {
+      await openConverterTab({ url: resolved.url, format: "png" });
       return;
     }
 
     const filename = buildFilename(
       resolved.url,
-      isImage ? "image" : "video",
-      true
+      isImage ? "image" : "video"
     );
 
     await chrome.downloads.download({
@@ -103,11 +94,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     });
   } catch (error) {
     console.error("MediaDownloader:", error);
+    await openConverterTab({ error: error.message || "Download failed." }, true)
+      .catch(reportError => console.error("MediaDownloader: Could not show error.", reportError));
   }
 });
 
 chrome.runtime.onMessage.addListener((message, sender) => {
-  if (message?.type === "md-close-converter" && sender.tab?.id) {
+  if (message?.type === "md-close-converter" && sender.tab?.id != null) {
     chrome.tabs.remove(sender.tab.id).catch(() => {});
   }
 });
@@ -119,17 +112,20 @@ chrome.runtime.onMessage.addListener((message, sender) => {
  */
 function resolveMediaUrl(request) {
   const absolute = (value) => {
-    try { return new URL(value, location.href).href; }
+    if (typeof value !== "string" || !value.trim()) return "";
+    try { return new URL(value.trim(), document.baseURI || location.href).href; }
     catch { return ""; }
   };
 
-  const clean = (value) => absolute((value || "").trim());
+  const clean = absolute;
+  const requestUrl = clean(request.url);
+  if (!requestUrl) return { url: "" };
 
   if (request.kind === "image") {
     const clicked = [...document.images].find(img =>
-      img.currentSrc === request.url ||
-      img.src === request.url ||
-      absolute(img.getAttribute("src")) === request.url
+      img.currentSrc === requestUrl ||
+      img.src === requestUrl ||
+      absolute(img.getAttribute("src")) === requestUrl
     );
 
     if (clicked) {
@@ -143,7 +139,8 @@ function resolveMediaUrl(request) {
         }
       }
 
-      if (clicked.dataset?.src) return { url: clean(clicked.dataset.src) };
+      const lazySource = clean(clicked.dataset?.src);
+      if (lazySource) return { url: lazySource };
 
       const sourceSet = clicked.getAttribute("srcset");
       if (sourceSet) {
@@ -166,12 +163,12 @@ function resolveMediaUrl(request) {
       if (clicked.src) return { url: clicked.src };
     }
 
-    return { url: clean(request.url) };
+    return { url: requestUrl };
   }
 
   const clickedVideo = [...document.querySelectorAll("video")].find(video =>
-    video.currentSrc === request.url ||
-    video.src === request.url
+    video.currentSrc === requestUrl ||
+    video.src === requestUrl
   );
 
   if (clickedVideo) {
@@ -183,45 +180,11 @@ function resolveMediaUrl(request) {
     if (clickedVideo.src) return { url: clickedVideo.src };
   }
 
-  return { url: clean(request.url) };
+  return { url: requestUrl };
 }
 
-async function openConverterTab(tab, media, format) {
-  const payload = {
-    url: media.url,
-    format,
-    sourcePage: tab.url || ""
-  };
-
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+async function openConverterTab(payload, active = false) {
+  const encoded = encodeURIComponent(JSON.stringify(payload));
   const url = chrome.runtime.getURL(`src/html/converter.html#${encoded}`);
-  await chrome.tabs.create({ url, active: false });
-}
-
-function buildFilename(mediaUrl, type, preserveName) {
-  let base = `${type}-${Date.now()}`;
-  try {
-    const parsed = new URL(mediaUrl);
-    const raw = decodeURIComponent(parsed.pathname.split("/").pop() || "");
-    if (preserveName && raw) {
-      base = raw.replace(/\.[^.]+$/, "") || base;
-    }
-  } catch (_) {}
-
-  const extension = type === "image" ? getExtension(mediaUrl, "bin") : getExtension(mediaUrl, "bin");
-  return `${sanitize(base)}.${extension}`;
-}
-
-function getExtension(url, fallback) {
-  try {
-    const path = new URL(url).pathname;
-    const match = path.match(/\.([a-z0-9]{2,8})$/i);
-    return match ? match[1].toLowerCase() : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function sanitize(value) {
-  return value.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").slice(0, 180);
+  await chrome.tabs.create({ url, active });
 }

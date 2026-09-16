@@ -6,7 +6,7 @@ MediaDownloader is a Manifest V3 extension for Chromium-based browsers.
 
 Right-click an image or video and choose the desired MediaDownloader command. Every download opens the browser's native **Save As** dialog, where you choose the name and destination. There is no settings page or completion page.
 
-PNG images are converted locally before the Save As dialog opens. The converter tab is invisible and closes automatically. MP4 conversion still requires a video encoder and is not available in this version.
+PNG images are converted locally before the Save As dialog opens. The converter opens in an inactive tab and closes automatically after starting the download. If a download or conversion fails, an error tab is brought to the foreground and stays open until you close it. MP4 conversion is not offered because this version does not include a video encoder; videos can be downloaded in their original format.
 
 ## Installation
 

@@ -2,11 +2,10 @@
  * Media conversion page.
  *
  * PNG: fetch the image, draw it to a canvas, and download a PNG Blob.
- * MP4: browser APIs do not provide a universal, reliable MP4 encoder.
- * We therefore attempt MediaSource/HTMLMediaElement capture only where the
- * browser can expose a playable stream. If no MP4 encoder is available,
- * the page explains the limitation rather than silently producing a bad file.
+ * Failures remain visible until the user closes the page.
  */
+
+import { buildFilename } from "./filename.js";
 
 const statusEl = document.getElementById("status");
 const progressEl = document.getElementById("progress");
@@ -14,15 +13,21 @@ const closeBtn = document.getElementById("close");
 
 closeBtn.addEventListener("click", () => window.close());
 
-function closeConverter() {
-  chrome.runtime.sendMessage({ type: "md-close-converter" });
+async function closeConverter() {
+  await chrome.runtime.sendMessage({ type: "md-close-converter" });
 }
 
 function decodePayload() {
   try {
     const encoded = location.hash.slice(1);
-    const json = decodeURIComponent(escape(atob(encoded)));
-    return JSON.parse(json);
+    const payload = JSON.parse(decodeURIComponent(encoded));
+    if (!payload || typeof payload !== "object") throw new Error();
+    if (typeof payload.error === "string" && payload.error.trim()) return payload;
+    if (payload.format !== "png" || typeof payload.url !== "string" || !payload.url.trim()) {
+      throw new Error();
+    }
+    new URL(payload.url);
+    return payload;
   } catch (error) {
     throw new Error("Invalid conversion request.");
   }
@@ -50,15 +55,6 @@ async function downloadBlob(blob, filename) {
   }
 }
 
-function safeBaseName(url, fallback) {
-  try {
-    const raw = decodeURIComponent(new URL(url).pathname.split("/").pop() || "");
-    return raw.replace(/\.[^.]+$/, "").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_") || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 async function convertImage(payload) {
   setStatus("Fetching image…", 10);
 
@@ -82,37 +78,26 @@ async function convertImage(payload) {
   });
 
   setStatus("Starting download…", 90);
-  await downloadBlob(png, `${safeBaseName(payload.url, "image")}.png`);
-}
-
-async function convertVideo(payload) {
-  /*
-   * A true arbitrary-video-to-MP4 converter requires an encoder such as
-   * FFmpeg/WebCodecs or a server-side transcoder. Shipping a WASM encoder
-   * would make this extension much larger. The extension therefore refuses
-   * to claim conversion when an encoder is not present.
-   */
-  throw new Error(
-    "MP4 conversion requires an encoder. The bundled extension does not " +
-    "include a third-party encoder, so the original video is not modified."
-  );
+  await downloadBlob(png, buildFilename(payload.url, "image", "png"));
 }
 
 (async () => {
   try {
     const payload = decodePayload();
 
-    if (payload.format === "png") {
-      await convertImage(payload);
-    } else if (payload.format === "mp4") {
-      await convertVideo(payload);
-    } else {
-      throw new Error("Unsupported conversion format.");
-    }
-    closeConverter();
+    if (payload.error) throw new Error(payload.error);
+    await convertImage(payload);
+    await closeConverter();
   } catch (error) {
     setStatus(error.message || "Conversion failed.");
     progressEl.hidden = true;
-    closeConverter();
+    document.title = "MediaDownloader — Download failed";
+    // Bring an inactive converter tab to the foreground so the error is seen.
+    try {
+      const tab = await chrome.tabs.getCurrent();
+      if (tab?.id != null) await chrome.tabs.update(tab.id, { active: true });
+    } catch (activationError) {
+      console.error("MediaDownloader: Could not activate error tab.", activationError);
+    }
   }
 })();
