@@ -9,9 +9,7 @@ Open the toolbar popup to configure your downloads. Every change is saved immedi
 - **Default save folders:** independent suggestions for Images and Videos, both defaulting to Downloads. Relative subfolders such as Media/Images are suggested in the browser's Save As dialog. Where supported, **Browse** lets you select a folder as the starting location for the native file picker. It opens a stable extension tab for folder selection. The browser exposes only the selected folder name, not its full path.
 - **Default format:** PNG for images (also JPG, WebP, or Original), MP4 for videos (also Original).
 
-Every download opens a native **Save As** dialog so you can choose the filename and final location. Browser downloads always use saveAs: true. For a folder selected with Browse, the converter first shows **Save file…**, since opening that native picker requires a direct click. If the browser does not support folder pickers, the ordinary browser Save As dialog is used instead. Absolute paths cannot be prefilled by the download API; choose them in the dialog.
-
-Folder handles are stored in IndexedDB. Clearing extension data or uninstalling removes the preferences and saved handles. Files saved through a folder picker do not appear in the browser's download history.
+Every download opens a native **Save As** dialog so you can choose the filename and final location.
 
 Right-click an image or video and choose the MediaDownloader command. **Download image as PNG (configured)** (or the configured image/video format) follows your popup settings and updates its label when you change the format. **Download image as original** and **Download video as original** preserve the source format and extension. All commands ask where to save the file.
 
@@ -24,12 +22,6 @@ The converter opens in an inactive tab and closes after the download completes. 
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Click **Load unpacked** and select this directory.
-
-After updating these files, click **Reload** for MediaDownloader on the extensions page to load the new background code. Close any converter tabs from before the reload and start a new download.
-
-## Tests
-
-Run `node --test tests/save-dialog.test.mjs` to check that original and converted downloads request Save As, including profiles with old settings and browsers without folder access.
 
 ## Permissions
 
