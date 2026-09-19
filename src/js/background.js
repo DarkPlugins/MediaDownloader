@@ -8,7 +8,7 @@
  */
 
 import { buildFilename } from "./filename.js";
-import { getSettings, downloadOptions, isAbsoluteFolder } from "./settings.js";
+import { getSettings, downloadOptions } from "./settings.js";
 
 const MENU_IDS = {
   imageOriginal: "md-image-original",
@@ -84,7 +84,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     }
 
     const kind = isImage ? "image" : "video";
-    if (format !== "original" || settings[`${kind}DirectoryId`] || isAbsoluteFolder(settings[`${kind}Folder`])) {
+    if (format !== "original" || settings[`${kind}DirectoryId`]) {
       await openConverterTab({ url: resolved.url, format, kind, settings });
       return;
     }

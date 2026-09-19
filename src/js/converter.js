@@ -6,9 +6,9 @@
  */
 
 import { buildFilename } from "./filename.js";
-import { downloadOptions, normalizeSettings, isAbsoluteFolder } from "./settings.js";
+import { downloadOptions, normalizeSettings } from "./settings.js";
 import { toMp4 } from "./video.js";
-import { getDirectory, writeUniqueFile, writeFile } from "./directories.js";
+import { getDirectory, writeFile } from "./directories.js";
 
 const statusEl = document.getElementById("status");
 const progressEl = document.getElementById("progress");
@@ -51,6 +51,7 @@ async function requestAction(message, label, action) {
   progressEl.hidden = true;
   const button = document.getElementById("action");
   button.textContent = label;
+  button.disabled = false;
   button.hidden = false;
   const tab = await chrome.tabs.getCurrent();
   if (tab?.id != null) await chrome.tabs.update(tab.id, { active: true });
@@ -65,26 +66,14 @@ async function requestAction(message, label, action) {
 
 async function downloadBlob(blob, filename, settings, kind) {
   const directoryId = settings[`${kind}DirectoryId`];
-  if (directoryId) {
+  if (directoryId && typeof window.showSaveFilePicker === "function") {
     const directory = await getDirectory(directoryId);
-    if (!settings.dontAskFilename) {
-      const file = await requestAction("Choose the filename and location for your download.", "Save file…", () =>
-        window.showSaveFilePicker({ suggestedName: filename, startIn: directory }));
-      await writeFile(file, blob);
-    } else {
-      if (await directory.queryPermission({ mode: "readwrite" }) !== "granted") {
-        const permission = await requestAction("Allow access to your saved folder to continue this download.", "Allow folder access", () =>
-          directory.requestPermission({ mode: "readwrite" }));
-        if (permission !== "granted") throw new Error("Folder access was not granted. Use Browse in the popup to reconnect it.");
-      }
-      setStatus("Saving to your folder…", 95);
-      await writeUniqueFile(directory, filename, blob);
-    }
+    const file = await requestAction("Choose the filename and location for your download.", "Save file…", () =>
+      window.showSaveFilePicker({ suggestedName: filename, startIn: directory }));
+    await writeFile(file, blob);
     return;
   }
-  if (isAbsoluteFolder(settings[`${kind}Folder`])) {
-    throw new Error("Use Browse in the popup to select and allow access to this folder first.");
-  }
+  setStatus("Starting download…", 95);
   const url = URL.createObjectURL(blob);
   try {
     const id = await chrome.downloads.download({
@@ -171,9 +160,6 @@ async function downloadOriginal(payload) {
     const payload = decodePayload();
 
     if (payload.error) throw new Error(payload.error);
-    if (!payload.settings[`${payload.kind}DirectoryId`] && isAbsoluteFolder(payload.settings[`${payload.kind}Folder`])) {
-      throw new Error("Use Browse in the popup to select and allow access to this folder first.");
-    }
     if (payload.format === "original") await downloadOriginal(payload);
     else if (payload.format === "mp4") await convertVideo(payload);
     else await convertImage(payload);

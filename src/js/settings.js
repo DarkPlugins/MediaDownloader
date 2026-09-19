@@ -4,8 +4,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   imageDirectoryId: "",
   videoDirectoryId: "",
   imageFormat: "png",
-  videoFormat: "mp4",
-  dontAskFilename: false
+  videoFormat: "mp4"
 });
 
 export const IMAGE_FORMATS = ["png", "jpg", "webp", "original"];
@@ -53,8 +52,7 @@ export function normalizeSettings(value = {}) {
     imageDirectoryId: typeof value.imageDirectoryId === "string" ? value.imageDirectoryId : "",
     videoDirectoryId: typeof value.videoDirectoryId === "string" ? value.videoDirectoryId : "",
     imageFormat: IMAGE_FORMATS.includes(value.imageFormat) ? value.imageFormat : "png",
-    videoFormat: VIDEO_FORMATS.includes(value.videoFormat) ? value.videoFormat : "mp4",
-    dontAskFilename: value.dontAskFilename === true
+    videoFormat: VIDEO_FORMATS.includes(value.videoFormat) ? value.videoFormat : "mp4"
   };
 }
 
@@ -65,10 +63,11 @@ export async function getSettings() {
 export function downloadOptions(filename, settings, kind = "image") {
   const value = normalizeSettings(settings);
   const folder = value[`${kind}Folder`];
-  if (value[`${kind}DirectoryId`] || isAbsoluteFolder(folder)) throw new Error("Use Browse to authorize the selected folder before saving.");
+  // Other destinations can be chosen in the native Save As dialog.
+  const relativeFolder = !value[`${kind}DirectoryId`] && !isAbsoluteFolder(folder) ? folder : "";
   return {
-    filename: folder ? `${folder}/${filename}` : filename,
+    filename: relativeFolder ? `${relativeFolder}/${filename}` : filename,
     conflictAction: "uniquify",
-    saveAs: !value.dontAskFilename
+    saveAs: true
   };
 }

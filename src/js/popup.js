@@ -39,7 +39,11 @@ async function save(values) {
 function folderNotice(kind, value, directoryId = "") {
   const field = folders[kind];
   const needsAccess = !directoryId && isAbsoluteFolder(value);
-  field.error.textContent = needsAccess ? "Use Browse to select and allow access to this folder." : "";
+  field.error.textContent = needsAccess
+    ? (typeof window.showDirectoryPicker === "function"
+      ? "Use Browse to select and allow access to this folder."
+      : "This browser cannot use an absolute folder path. Leave empty for Downloads or enter a relative subfolder.")
+    : "";
   field.error.hidden = !needsAccess;
   field.input.title = directoryId ? `Selected folder: ${value}. The browser hides the full system path.` : value;
   field.input.dataset.selected = directoryId ? "true" : "false";
@@ -72,8 +76,14 @@ for (const kind of ["image", "video"]) {
   const select = document.getElementById(`${kind}-format`);
   select.addEventListener("change", () => void save({ [`${kind}Format`]: select.value }));
 }
-const dontAsk = document.getElementById("dont-ask-filename");
-dontAsk.addEventListener("change", () => void save({ dontAskFilename: dontAsk.checked }));
+// Folder browsing is optional; the normal Save As dialog remains available.
+if (typeof window.showDirectoryPicker !== "function") {
+  document.getElementById("folder-help").textContent = "Leave empty for Downloads or enter a relative subfolder such as Media/Images. Absolute folder paths are unavailable in this browser.";
+  for (const field of Object.values(folders)) {
+    field.browse.disabled = true;
+    field.browse.title = "Folder browsing is unavailable in this browser. Use Downloads or a relative subfolder.";
+  }
+}
 
 function render(settings) {
   for (const [kind, field] of Object.entries(folders)) {
@@ -81,7 +91,6 @@ function render(settings) {
     folderNotice(kind, settings[`${kind}Folder`], settings[`${kind}DirectoryId`]);
     document.getElementById(`${kind}-format`).value = settings[`${kind}Format`];
   }
-  dontAsk.checked = settings.dontAskFilename;
 }
 
 try {

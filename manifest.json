@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MediaDownloader",
-  "version": "1.2.0",
+  "version": "1.2.3",
   "description": "Download images and videos from their context menu in original or converted formats.",
   "author": "DarkPlugins",
   "permissions": ["contextMenus", "downloads", "scripting", "tabs", "storage", "unlimitedStorage"],
